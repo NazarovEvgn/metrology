@@ -1,0 +1,9 @@
+[project]
+name = "metrology"
+version = "0.1.0"
+description = "Приложение для учета метрологического обеспечения и управления оборудованием"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ruff>=0.12.8",
+]
