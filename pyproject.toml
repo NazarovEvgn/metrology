@@ -5,5 +5,37 @@ description = "Приложение для учета метрологическ
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "pre-commit>=4.3.0",
     "ruff>=0.12.8",
 ]
+
+[tool.ruff]
+# Цели и базовые параметры
+target-version = "py313"
+line-length = 100
+extend-exclude = [
+  "client/node_modules",
+  "client/dist",
+  ".venv",
+  "alembic/versions",
+]
+
+[tool.ruff.lint]
+# Набор проверок:
+# E,F,W — pycodestyle/pyflakes; I — isort; UP — pyupgrade; B — bugbear;
+# SIM — simplifications; PERF — производительность; PL — pylint-lite; RUF — внутренние
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "PERF", "PL", "RUF"]
+# При желании можно точечно игнорировать правила, например:
+# ignore = ["E203", "E501"]
+
+# Настройки isort внутри Ruff (импортов)
+[tool.ruff.lint.isort]
+known-first-party = ["app"]  # твой пакет сервера
+combine-as-imports = true
+
+[tool.ruff.format]
+# Включаем встроенный форматтер Ruff
+quote-style = "double"       # кавычки — двойные
+indent-style = "space"       # пробельные отступы
+line-ending = "auto"         # авто по ОС
+docstring-code-format = true # форматировать код в докстрингах
