@@ -1,10 +1,41 @@
-# Python-generated files
+# --- Python / Backend ---
+.venv/
 __pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.cache/
+.mypy_cache/
+.pytest_cache/
+.coverage*
+htmlcov/
 
-# Virtual environments
-.venv
+# env-файлы (секреты!)
+.env
+.env.*
+*.env
+
+# uv
+.uv/
+
+# --- OS / Editors ---
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- Frontend / Vue + Vite + Tauri ---
+metrology-desktop/node_modules/
+metrology-desktop/dist/
+metrology-desktop/.vite/
+metrology-desktop/.env
+metrology-desktop/.env.*
+metrology-desktop/src-tauri/target/
+metrology-desktop/src-tauri/*.log
+
+# logs
+*.log
+
+# allow examples
+!.env.example
+!metrology-desktop/.env.example
