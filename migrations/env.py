@@ -18,7 +18,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from app.config import settings
-from app.models.base import Base
+from app.models import Base
 
 target_metadata = Base.metadata
 

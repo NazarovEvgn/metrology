@@ -35,6 +35,9 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "PERF", "PL", "RUF"]
 # При желании можно точечно игнорировать правила, например:
 # ignore = ["E203", "E501"]
 
+[tool.ruff.lint.per-file-ignores]
+"migrations/**/*.py" = ["E501"]
+
 # Настройки isort внутри Ruff (импортов)
 [tool.ruff.lint.isort]
 known-first-party = ["app"]  # твой пакет сервера
