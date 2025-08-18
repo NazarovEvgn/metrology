@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import Date, cast, func, literal, literal_column, or_, select
+from sqlalchemy import Date, case, cast, func, literal, literal_column, or_, select
 from sqlalchemy.orm import Session
 
 from ..deps.db import get_db
@@ -94,6 +94,30 @@ NEXT_DATE_EXPR = cast(
     Date,
 ).label("next_verification_date")
 
+# разница в днях: next_date - CURRENT_DATE (в PostgreSQL это integer для date - date)
+DAYS_LEFT = (NEXT_DATE_EXPR - func.current_date()).label("days_left")
+
+# статусы для нерабочих состояний
+NON_WORK_STATES = ("на консервации", "на верификации", "в ремонте", "списано")
+
+DAYS_THRESHOLD = 14  # количество дней для статуса "срок истекает"
+
+STATUS_EXPR = case(
+    (Equipment.state.in_(NON_WORK_STATES), Equipment.state),
+    else_=case(
+        (
+            Equipment.state == "в работе",
+            case(
+                (NEXT_DATE_EXPR.is_(None), literal("нет данных")),
+                (DAYS_LEFT < 0, literal("срок истек")),
+                (DAYS_LEFT <= DAYS_THRESHOLD, literal("срок истекает")),
+                else_=literal("годен"),
+            ),
+        ),
+        else_=literal("нет данных"),
+    ),
+).label("status")
+
 
 # -----------------------------
 # Handlers
@@ -112,6 +136,8 @@ def list_equipment(
         Verification.verification_date,
         Verification.interval_months,
         NEXT_DATE_EXPR,
+        Equipment.state,
+        STATUS_EXPR,
     ).join(Verification, Verification.equipment_id == Equipment.id, isouter=True)
 
     # Full-text-like search across several columns
@@ -142,7 +168,7 @@ def list_equipment(
 
     # Flatten JOIN into plain dicts that match EquipmentRead
     result: list[dict] = []
-    for eq, ver_date, interval_months, next_date in rows:
+    for eq, ver_date, interval_months, next_date, state, status in rows:
         result.append(
             {
                 "id": str(eq.id),
@@ -155,6 +181,8 @@ def list_equipment(
                 "verification_date": ver_date,
                 "interval_months": interval_months,
                 "next_verification_date": next_date,
+                "state": state,  # ← новое
+                "status": status,  # ← новое
             }
         )
     return result
@@ -170,30 +198,25 @@ def list_equipment_no_slash(
 
 
 @router.get("/{equipment_id}", response_model=EquipmentRead)
-def get_equipment(
-    equipment_id: str,
-    db: Session = Depends(get_db),  # noqa: B008
-):
-    """
-    Single equipment by UUID with verification fields if present.
-    """
+def get_equipment(equipment_id: str, db: Session = Depends(get_db)):  # noqa: B008
     stmt = (
         select(
             Equipment,
             Verification.verification_date,
             Verification.interval_months,
             NEXT_DATE_EXPR,
+            Equipment.state,
+            STATUS_EXPR,
         )
         .join(Verification, Verification.equipment_id == Equipment.id, isouter=True)
         .where(Equipment.id == equipment_id)
         .limit(1)
     )
-
     row = db.execute(stmt).first()
     if not row:
         raise HTTPException(status_code=404, detail="Equipment not found")
 
-    eq, ver_date, interval_months, next_date = row
+    eq, ver_date, interval_months, next_date, state, status = row
     return {
         "id": str(eq.id),
         "name": eq.name,
@@ -205,4 +228,6 @@ def get_equipment(
         "verification_date": ver_date,
         "interval_months": interval_months,
         "next_verification_date": next_date,
+        "state": state,
+        "status": status,
     }

@@ -67,6 +67,25 @@ function nextPage() {
   load();
 }
 
+// простая раскраска статуса
+function chipStyle(status: string) {
+  const base = {
+    padding: "2px 8px",
+    borderRadius: "12px",
+    display: "inline-block",
+    fontWeight: 600 as const,
+    border: "1px solid #2b2b2b",
+    background: "#2a2a2a",
+    color: "#e8e8e8",
+  };
+  if (status === "срок истек") return { ...base, background: "#4a1f1f" };
+  if (status === "срок истекает") return { ...base, background: "#4a3e1f" };
+  if (status === "годен") return { ...base, background: "#213f21" };
+  if (["на консервации", "на верификации", "в ремонте", "списано"].includes(status))
+    return { ...base, background: "#1f2a4a" };
+  return base;
+}
+
 onMounted(load);
 </script>
 
@@ -117,6 +136,9 @@ onMounted(load);
           <th>Поверка (дата)</th>
           <th>Интервал (мес)</th>
           <th>Следующая поверка</th>
+          <!-- Модуль Status -->
+          <th>Состояние</th>
+          <th>Статус</th>
         </tr>
       </thead>
       <tbody>
@@ -128,9 +150,16 @@ onMounted(load);
           <td>{{ it.verification_date ?? "—" }}</td>
           <td>{{ it.interval_months ?? "—" }}</td>
           <td>{{ it.next_verification_date ?? "—" }}</td>
+          <!-- Новые колонки -->
+          <td>{{ it.state }}</td>
+          <td>
+            <span :style="chipStyle(it.status)" :title="it.status">
+              {{ it.status }}
+            </span>
+          </td>
         </tr>
         <tr v-if="!items.length && !loading && !error">
-          <td colspan="7" class="muted">Нет данных</td>
+          <td colspan="9" class="muted">Нет данных</td>
         </tr>
       </tbody>
     </table>

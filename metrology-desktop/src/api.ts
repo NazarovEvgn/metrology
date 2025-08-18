@@ -1,10 +1,12 @@
 // src/api.ts
 import type { EquipmentRead, ListParams } from "./types";
 
+// базовый URL API
 export const BASE =
   (import.meta.env?.VITE_API_BASE && String(import.meta.env.VITE_API_BASE)) ||
   "http://127.0.0.1:8000";
 
+// сборка query string
 function buildQuery(params: ListParams): string {
   const sp = new URLSearchParams();
   ([
@@ -21,14 +23,21 @@ function buildQuery(params: ListParams): string {
   return sp.toString();
 }
 
-async function fetchJSON<T>(input: RequestInfo | URL, init?: RequestInit, timeoutMs = 10000): Promise<T> {
+// универсальный fetch с таймаутом
+async function fetchJSON<T>(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs = 10000
+): Promise<T> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);
   try {
     const res = await fetch(input, { ...init, signal: ac.signal });
     if (!res.ok) {
       let details = "";
-      try { details = await res.clone().text(); } catch {}
+      try {
+        details = await res.clone().text();
+      } catch {}
       throw new Error(`HTTP ${res.status}${details ? `: ${details}` : ""}`);
     }
     return res.json() as Promise<T>;
@@ -37,7 +46,10 @@ async function fetchJSON<T>(input: RequestInfo | URL, init?: RequestInit, timeou
   }
 }
 
-export async function listEquipment(params: ListParams = {}): Promise<EquipmentRead[]> {
+// список оборудования
+export async function listEquipment(
+  params: ListParams = {}
+): Promise<EquipmentRead[]> {
   const url = new URL("/equipment/", BASE);
   url.search = buildQuery(params);
   return fetchJSON<EquipmentRead[]>(url, {
@@ -49,5 +61,7 @@ export async function listEquipment(params: ListParams = {}): Promise<EquipmentR
 // (опционально) детальная запись
 export async function getEquipment(id: string): Promise<EquipmentRead> {
   const url = new URL(`/equipment/${encodeURIComponent(id)}`, BASE);
-  return fetchJSON<EquipmentRead>(url, { headers: { Accept: "application/json" } });
+  return fetchJSON<EquipmentRead>(url, {
+    headers: { Accept: "application/json" },
+  });
 }
