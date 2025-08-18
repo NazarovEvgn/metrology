@@ -1,6 +1,7 @@
 # app/models/verification.py
 from __future__ import annotations
 
+import uuid
 from datetime import date
 
 from sqlalchemy import Date, ForeignKey, Integer, UniqueConstraint
@@ -13,7 +14,11 @@ from .base import Base
 class Verification(Base):
     __tablename__ = "verification"
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True)
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
 
     equipment_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False),

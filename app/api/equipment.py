@@ -1,16 +1,24 @@
 # app/api/equipment.py
 from __future__ import annotations
 
+import contextlib
 from typing import TypedDict
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from psycopg.errors import (  # type: ignore
+    CheckViolation,
+    ForeignKeyViolation,
+    NotNullViolation,
+    UniqueViolation,
+)
 from sqlalchemy import Date, case, cast, func, literal, literal_column, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..deps.db import get_db
 from ..models.equipment import Equipment
 from ..models.verification import Verification
-from ..schemas.equipment import EquipmentRead
+from ..schemas.equipment import EquipmentCreate, EquipmentRead, EquipmentUpdate
 
 router = APIRouter(prefix="/equipment", tags=["equipment"])
 
@@ -83,12 +91,16 @@ async def get_equipment_query(
     return params
 
 
+# -----------------------------
+# Derived columns (verification/status)
+# -----------------------------
 NEXT_DATE_EXPR = cast(
     (
         Verification.verification_date
-        + func.make_interval(
-            literal(0), Verification.interval_months
-        )  # years=0, months=interval_months
+        + func.make_interval(  # years=0, months=interval_months
+            literal(0),
+            Verification.interval_months,
+        )
         - literal_column("interval '1 day'")
     ),
     Date,
@@ -168,7 +180,7 @@ def list_equipment(
 
     # Flatten JOIN into plain dicts that match EquipmentRead
     result: list[dict] = []
-    for eq, ver_date, interval_months, next_date, state, status in rows:
+    for eq, ver_date, interval_months, next_date, state, status_value in rows:
         result.append(
             {
                 "id": str(eq.id),
@@ -181,8 +193,8 @@ def list_equipment(
                 "verification_date": ver_date,
                 "interval_months": interval_months,
                 "next_verification_date": next_date,
-                "state": state,  # ← новое
-                "status": status,  # ← новое
+                "state": state,
+                "status": status_value,
             }
         )
     return result
@@ -216,7 +228,7 @@ def get_equipment(equipment_id: str, db: Session = Depends(get_db)):  # noqa: B0
     if not row:
         raise HTTPException(status_code=404, detail="Equipment not found")
 
-    eq, ver_date, interval_months, next_date, state, status = row
+    eq, ver_date, interval_months, next_date, state, status_value = row
     return {
         "id": str(eq.id),
         "name": eq.name,
@@ -229,5 +241,111 @@ def get_equipment(equipment_id: str, db: Session = Depends(get_db)):  # noqa: B0
         "interval_months": interval_months,
         "next_verification_date": next_date,
         "state": state,
-        "status": status,
+        "status": status_value,
     }
+
+
+@router.post("/", response_model=EquipmentRead, status_code=status.HTTP_201_CREATED)
+def create_equipment(payload: EquipmentCreate, db: Session = Depends(get_db)):  # noqa: B008
+    try:
+        eq = Equipment(
+            name=payload.name,
+            type=payload.type,
+            serial_number=payload.serial_number,
+            inventory_number=payload.inventory_number,
+            state=payload.state,
+        )
+        db.add(eq)
+        db.flush()  # получим eq.id
+
+        # создаём verification, только если заданы оба поля
+        if payload.verification_date is not None and payload.interval_months is not None:
+            ver = Verification(
+                equipment_id=eq.id,
+                verification_date=payload.verification_date,
+                interval_months=payload.interval_months,
+            )
+            db.add(ver)
+
+        db.commit()
+
+    except IntegrityError as e:
+        db.rollback()
+        # Читаемая диагностика без длинных строк
+        orig = getattr(e, "orig", None)
+        msg = "Integrity error"
+
+        def _diag_attr(name: str):
+            diag = getattr(orig, "diag", None)
+            return getattr(diag, name, None) if diag is not None else None
+
+        if isinstance(orig, UniqueViolation):
+            msg = f"Unique violation (constraint={_diag_attr('constraint_name')})"
+        elif isinstance(orig, CheckViolation):
+            msg = f"Check violation (constraint={_diag_attr('constraint_name')})"
+        elif isinstance(orig, NotNullViolation):
+            msg = f"Not null violation (column={_diag_attr('column_name')})"
+        elif isinstance(orig, ForeignKeyViolation):
+            msg = f"Foreign key violation (constraint={_diag_attr('constraint_name')})"
+        else:
+            with contextlib.suppress(Exception):
+                msg = str(orig)
+        raise HTTPException(status_code=400, detail=msg) from e
+
+    return get_equipment(str(eq.id), db)
+
+
+@router.patch("/{equipment_id}", response_model=EquipmentRead)
+def update_equipment(
+    equipment_id: str,
+    payload: EquipmentUpdate,
+    db: Session = Depends(get_db),  # noqa: B008
+):
+    eq: Equipment | None = db.get(Equipment, equipment_id)
+    if not eq:
+        raise HTTPException(status_code=404, detail="Equipment not found")
+
+    # частичное обновление
+    if payload.name is not None:
+        eq.name = payload.name
+    if payload.type is not None:
+        eq.type = payload.type
+    if payload.serial_number is not None:
+        eq.serial_number = payload.serial_number
+    if payload.inventory_number is not None:
+        eq.inventory_number = payload.inventory_number
+    if payload.state is not None:
+        eq.state = payload.state
+
+    # верификация (создадим/обновим, если пришли поля)
+    if payload.verification_date is not None or payload.interval_months is not None:
+        ver = db.query(Verification).filter(Verification.equipment_id == equipment_id).one_or_none()
+        if ver is None:
+            ver = Verification(
+                equipment_id=equipment_id,
+                verification_date=payload.verification_date,
+                interval_months=payload.interval_months or 0,
+            )
+            db.add(ver)
+        else:
+            if payload.verification_date is not None:
+                ver.verification_date = payload.verification_date
+            if payload.interval_months is not None:
+                ver.interval_months = payload.interval_months
+
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Integrity error") from e
+
+    return get_equipment(equipment_id, db)
+
+
+@router.delete("/{equipment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_equipment(equipment_id: str, db: Session = Depends(get_db)):  # noqa: B008
+    eq: Equipment | None = db.get(Equipment, equipment_id)
+    if not eq:
+        raise HTTPException(status_code=404, detail="Equipment not found")
+    db.delete(eq)  # каскад на Verification у тебя уже настроен
+    db.commit()

@@ -7,20 +7,21 @@ from .config import settings
 
 app = FastAPI(title=settings.app_name, version=settings.version)
 
-# CORS для фронта (Vite/Tauri) в dev
+
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "http://localhost:1420",  # часто порт Tauri dev
+    "http://localhost:1420",
     "http://127.0.0.1:1420",
-    "tauri://localhost",  # схема Tauri
+    "tauri://localhost",
 ]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET"],  # сейчас только read-only
-    allow_headers=["*"],
+    allow_credentials=False,  # creds не нужны; можно оставить True при необходимости
+    allow_methods=["*"],  # разрешаем OPTIONS/POST/PATCH/DELETE/GET
+    allow_headers=["*"],  # Content-Type, Authorization и пр.
 )
 
 app.include_router(equipment_router)
