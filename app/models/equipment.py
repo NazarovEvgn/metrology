@@ -61,7 +61,7 @@ class Equipment(Base):
     __table_args__ = (
         # мягкая валидация на стороне БД
         CheckConstraint(
-            f"state IN ('{'',''.join(ALLOWED_STATES)}')",
+            f"state IN ('{'', ''.join(ALLOWED_STATES)}')",
             name="ck_equipment_state_allowed",
         ),
     )

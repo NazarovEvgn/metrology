@@ -1,12 +1,35 @@
+default_language_version:
+  python: python3.13
+
+exclude: |
+  (?x)(
+    ^client/node_modules/|
+    ^client/dist/|
+    ^\.venv/|
+    ^alembic/versions/
+  )
+
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.7
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix]
+        name: ruff (uvx)
+        entry: uvx ruff check --fix
+        language: system
+        types: [python]
       - id: ruff-format
+        name: ruff-format (uvx)
+        entry: uvx ruff format
+        language: system
+        types: [python]
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=auto]
+      - id: check-yaml
+      - id: check-toml

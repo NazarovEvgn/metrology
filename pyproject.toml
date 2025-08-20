@@ -7,17 +7,20 @@ requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.16.4",
     "fastapi>=0.116.1",
-    "pre-commit>=4.3.0",
     "psycopg[binary]>=3.2.9",
     "pydantic-settings>=2.10.1",
     "python-dotenv>=1.1.1",
-    "ruff>=0.12.8",
     "sqlalchemy>=2.0.43",
     "uvicorn>=0.35.0",
 ]
 
+[dependency-groups]
+dev = [
+    "ruff>=0.12.8",
+    "pre-commit>=4.3.0",
+]
+
 [tool.ruff]
-# Цели и базовые параметры
 target-version = "py313"
 line-length = 100
 extend-exclude = [
@@ -28,23 +31,15 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-# Набор проверок:
-# E,F,W — pycodestyle/pyflakes; I — isort; UP — pyupgrade; B — bugbear;
-# SIM — simplifications; PERF — производительность; PL — pylint-lite; RUF — внутренние
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "PERF", "PL", "RUF"]
 ignore = ["RUF003"]
 
-[tool.ruff.lint.per-file-ignores]
-"migrations/**/*.py" = ["E501"]
-
-# Настройки isort внутри Ruff (импортов)
 [tool.ruff.lint.isort]
-known-first-party = ["app"]  # твой пакет сервера
+known-first-party = ["app"]
 combine-as-imports = true
 
 [tool.ruff.format]
-# Включаем встроенный форматтер Ruff
-quote-style = "double"       # кавычки — двойные
-indent-style = "space"       # пробельные отступы
-line-ending = "auto"         # авто по ОС
-docstring-code-format = true # форматировать код в докстрингах
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
